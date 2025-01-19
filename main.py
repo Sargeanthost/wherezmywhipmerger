@@ -5,7 +5,12 @@ from dataclasses import dataclass
 from routeplanner import RoutePlan, Stop, Location, Request
 from mapboxclient import Mapbox
 import numpy as np
-from supabaseclient import getTodayRequests, pushRoutesToTable, giveRequestIDRouteID
+from supabaseclient import (
+    getTodayRequests,
+    pushRoutesToTable,
+    giveRequestIDRouteID,
+    setPickupTime,
+)
 
 
 def calculateDetourTime(
@@ -273,6 +278,7 @@ if __name__ == "__main__":
     for i, routePlan in enumerate(sol):
         for j, request in enumerate(routePlan.requests):
             giveRequestIDRouteID(request.user_id, routeIDs[i])
+            setPickupTime(request.user_id, routePlan.requestPickupTime(requestIndex=j))
 
     carlosRequests = [
         Request(

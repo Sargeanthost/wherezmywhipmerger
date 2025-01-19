@@ -121,12 +121,27 @@ def pushRoutesToTable(plans: list[RoutePlan], routesJson):
 
 def giveRequestIDRouteID(requestID, routeID):
     print(f"Request ID: {requestID}, Route ID: {routeID}")
+
     outDict = (
         supabase_client.table("request")
         .update({"route_id": routeID})
         .eq("id", requestID)  # Use .eq() for equality in Supabase
         .execute()  # Execute the query
     )
+
+
+def setPickupTime(requestID, pickupTime):
+    print(f"Request ID: {requestID}, Pickup Time {pickupTime}")
+
+    eastern = timezone(timedelta(hours=-5))
+    dt = datetime.fromtimestamp(pickupTime, tz=eastern)
+    outDict = (
+        supabase_client.table("request")
+        .update({"pickup_time": dt.isoformat()})
+        .eq("id", requestID)  # Use .eq() for equality in Supabase
+        .execute()  # Execute the query
+    )
+    pass
 
 
 def getTodayRequests() -> list[Request]:
@@ -156,7 +171,7 @@ def getTodayRequests() -> list[Request]:
     for i in table:
         if get_day_of_year_from_epoch(i.arrival) == today:
             todaysRequests.append(
-                Request(i.pickup, i.destination, i.arrival - 1737239389, i.id)
+                Request(i.pickup, i.destination, i.arrival, i.id)  # - 1737239389, i.id)
             )
     return todaysRequests
 

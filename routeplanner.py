@@ -84,6 +84,12 @@ class RoutePlan:
             string += "\t" + str(self.requests[i]) + "\n"
         return string
 
+    def requestPickupTime(self, requestIndex: int) -> float:
+        for i, stop in enumerate(self.route):
+            if stop.location == self.requests[requestIndex].start_loc:
+                return stop.arrivalTime
+        return -1
+
     def firstLocation(self) -> Location:
         return self.route[0].location
 
