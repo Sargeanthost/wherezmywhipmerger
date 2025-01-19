@@ -11,6 +11,7 @@ from dateutil import parser
 
 supabase_url: str = os.environ.get("SUPABASE_URL")  # type: ignore
 supabase_key: str = os.environ.get("SUPABASE_KEY")  # type: ignore
+print(supabase_key)
 supabase_client: Client = create_client(supabase_url, supabase_key)
 
 
@@ -78,7 +79,7 @@ def get_current_day_of_year():
     # Get current date and time
     now = datetime.now()
     # Return the day of the year
-    return now.timetuple().tm_yday - 1
+    return now.timetuple().tm_yday + 1
 
 
 def get_day_of_year_from_epoch(epoch_seconds):
@@ -171,8 +172,9 @@ def getTodayRequests() -> list[Request]:
     for i in table:
         if get_day_of_year_from_epoch(i.arrival) == today:
             todaysRequests.append(
-                Request(i.pickup, i.destination, i.arrival, i.id)  # - 1737239389, i.id)
+                Request(i.pickup, i.destination, i.arrival, i.id)  # - 1737371145, i.id)
             )
+    todaysRequests = sorted(todaysRequests, key=lambda request: request.user_id)
     return todaysRequests
 
 

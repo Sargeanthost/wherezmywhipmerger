@@ -31,7 +31,7 @@ class Location:
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, Location):
             return False
-        return self.distnaceTo(value) < 0.001  # type: ignore
+        return self.distnaceTo(value) < 0.005  # type: ignore
 
     def distnaceTo(self, destination: Self) -> float:
         return sqrt(
@@ -137,19 +137,26 @@ class RoutePlan:
 
             arrivalTime = self.route[endIndex].arrivalTime
             requestedArrivalTime = self.requests[i].end_time
-            earlyDropOffThreshold: float = 5 * 60.0
+            earlyDropOffThreshold: float = 10 * 60.0
 
             # print(arrivalTime, requestedArrivalTime, earlyDropOffThreshold)
             # For each Request, Stop arrival_time of end_loc is before request end_time and not more than (5) minutes before
             print(
+                "Real Arrive Time",
                 arrivalTime,
+                "Sche Arrive Time",
                 requestedArrivalTime,
+                "Dont Drop Before",
                 requestedArrivalTime - earlyDropOffThreshold,
             )
-            if arrivalTime > requestedArrivalTime or arrivalTime < (
+            if arrivalTime > requestedArrivalTime:
+                print("INVALID! Arrive Too late")
+                return False
+                
+            if arrivalTime < (
                 requestedArrivalTime - earlyDropOffThreshold
             ):
-                print("INVALID TIME")
+                print("INVALID Arrive Too Early")
                 return False
 
             # For each Request, Stop arrival_time of start_loc is not before (30) + start_loc.travelTimeTo(end_loc)

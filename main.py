@@ -68,11 +68,22 @@ def tripJsonToStops(chosenRequests):
         fullRouteTime += duration
 
     lastUserTime = 0
-    for i in range(len(chosenRequests)):
-        lastUserTime = max(lastUserTime, chosenRequests[i].end_time)
+   
 
-    # lastUserTime = out[len(out) - 1][0][1]["location"]
-    # print(lastUserTime, fullRouteTime)
+    lastUserLocArr = out[len(out) - 1][0][1]["location"]
+    lastUserLoc = Location(lastUserLocArr[1], lastUserLocArr[0])
+    print("lastUserLoc", lastUserLoc)
+    #Last STOP's Location's Time
+
+    for i in range(len(chosenRequests)):
+        if(lastUserLoc == chosenRequests[i].end_loc):
+            lastUserTime = chosenRequests[i].end_time
+            break
+        # lastUserTime = max(lastUserTime, chosenRequests[i].end_time)
+
+    print("Last User Time", lastUserTime)
+    
+    print("Full Route Time", fullRouteTime)
 
     currentTime = (
         lastUserTime - fullRouteTime - 60
@@ -194,6 +205,7 @@ def calculateMinimumRoutes(requests: list[Request]) -> list[RoutePlan]:
         requests, allOneGroup
     )  # checkGroupIndexes(requests, allOneGroup)
 
+    print("SUCs")
     print(successGroup)
     ret, routesJson = checkGroupIndexes(requests, successGroup)
     # print(ret)
@@ -273,12 +285,14 @@ if __name__ == "__main__":
     # print(AReq)
 
     # Push To DB}
+    #'''
     routeIDs = pushRoutesToTable(sol, routesJson)
     print("RouteIDs", routeIDs)
     for i, routePlan in enumerate(sol):
         for j, request in enumerate(routePlan.requests):
             giveRequestIDRouteID(request.user_id, routeIDs[i])
             setPickupTime(request.user_id, routePlan.requestPickupTime(requestIndex=j))
+    #'''
 
     carlosRequests = [
         Request(
