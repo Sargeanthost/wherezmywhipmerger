@@ -1,7 +1,7 @@
 # take in routplans to push to db
 import os
 from supabase import create_client, Client, PostgrestAPIError, PostgrestAPIResponse
-from routeplanner import Location, Request
+from routeplanner import Location, Request, RoutePlan
 from dataclasses import dataclass
 from shapely.wkb import loads
 import binascii
@@ -11,9 +11,10 @@ from dateutil import parser
 
 supabase_url: str = os.environ.get("SUPABASE_URL")  # type: ignore
 supabase_key: str = os.environ.get("SUPABASE_KEY")  # type: ignore
-supabase: Client = create_client(supabase_url, supabase_key)
+supabase_client: Client = create_client(supabase_url, supabase_key)
 
-resp: PostgrestAPIResponse = supabase.table("request").select("*").execute()
+
+resp: PostgrestAPIResponse = supabase_client.table("request").select("*").execute()
 
 # print(type(resp))
 
@@ -56,7 +57,7 @@ def geoToLocation(geo: str) -> Location:
     # Convert the hex string to binary and load it
     point = loads(binascii.unhexlify(geo))
 
-    return Location(point.x, point.y)
+    return Location(point.y, point.x)
 
 
 def timeStampStringToSec(timestamp: str) -> int:
@@ -77,19 +78,59 @@ def get_current_day_of_year():
     # Get current date and time
     now = datetime.now()
     # Return the day of the year
-    return now.timetuple().tm_yday
+    return now.timetuple().tm_yday - 1
 
 
 def get_day_of_year_from_epoch(epoch_seconds):
     # Convert epoch seconds to a timezone-aware datetime object in UTC
     eastern = timezone(timedelta(hours=-5))
+
+    # dt = datetime.fromtimestamp(epoch_seconds, tz=timezone.utc)
     dt = datetime.fromtimestamp(epoch_seconds, tz=eastern)
+
     # Return the day of the year
     # print("Current Hour:", dt.hour)
     return dt.timetuple().tm_yday
 
 
+def pushRoutesToTable(plans: list[RoutePlan], routesJson):
+    routeIDs = []
+    for i in range(len(plans)):
+        startLocation = plans[i].firstLocation()
+        print("PUSH TO TABLE")
+
+        pointStr = f"POINT({startLocation.lon} {startLocation.lat})"
+        print(pointStr)
+
+        outDict = (
+            supabase_client.table("route")
+            .insert(
+                {
+                    "route": routesJson[i],
+                    "start_loc": pointStr,
+                }
+            )
+            .execute()
+        ).data
+
+        routeID = outDict[0]["id"]
+        routeIDs.append(routeID)
+        # print(f"ID: {routeID}")
+    return routeIDs
+
+
+def giveRequestIDRouteID(requestID, routeID):
+    print(f"Request ID: {requestID}, Route ID: {routeID}")
+    outDict = (
+        supabase_client.table("request")
+        .update({"route_id": routeID})
+        .eq("id", requestID)  # Use .eq() for equality in Supabase
+        .execute()  # Execute the query
+    )
+
+
 def getTodayRequests() -> list[Request]:
+    # supabase_client.table("route").insert({"thing":"POINT({},{})" })
     for i, row in enumerate(resp):
         # print(row, row["id"])
         # print("\n\n")
@@ -115,7 +156,7 @@ def getTodayRequests() -> list[Request]:
     for i in table:
         if get_day_of_year_from_epoch(i.arrival) == today:
             todaysRequests.append(
-                Request(i.pickup, i.destination, i.arrival - 1737239389)
+                Request(i.pickup, i.destination, i.arrival - 1737239389, i.id)
             )
     return todaysRequests
 
@@ -124,3 +165,6 @@ def getTodayRequests() -> list[Request]:
 
 
 # print(len(resp.data))
+
+if __name__ == "__main__":
+    print(geoToLocation("0101000000e4326e6aa0f351c0a5bdc11726234540"))

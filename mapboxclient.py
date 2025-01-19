@@ -1,7 +1,6 @@
 import httpx
 import os
-from routeplanner import RoutePlan, Stop, Location, Request
-import urllib.parse
+from routeplanner import Location, Request
 
 
 ids = []
@@ -87,7 +86,7 @@ class Mapbox:
 
     def requestOptimizedTrip(
         self, locations: list[Request]
-    ) -> list[tuple[tuple[dict, dict], dict]]:
+    ) -> tuple[dict, list[tuple[tuple[dict, dict], dict]]]:
         """Takes in a list of Requests and returns an optimized trip that goes through all points.
 
         Args:
@@ -101,7 +100,7 @@ class Mapbox:
 
         resp = self.optimizer_client.get(
             rf"optimized-trips/v1/mapbox/driving/{_locations}",
-            params={"distributions": f"{_distributions}"},
+            # params={},  # {"distributions": f"{_distributions}"},
         )
         # print(f"request:", {resp.request.url})
 
@@ -109,20 +108,20 @@ class Mapbox:
             case 200:
                 match resp.json()["code"]:
                     case "Ok":
-                        return self._parseSolutionJson(resp.json())
+                        return (resp.json(), self._parseSolutionJson(resp.json()))
                     case "NoRoute":
-                        raise Exception("Failed to get optimized trip")
+                        raise Exception(f"No route: {resp.json()['message']}")
                     case "NoTrips":
-                        raise Exception("Failed to get optimized trip")
+                        raise Exception("NoTrips: Failed to get optimized trip")
                     case "NotImplemented":
-                        raise Exception("Failed to get optimized trip")
+                        raise Exception("NotImplemented: Failed to get optimized trip")
                     case "NoSegment":
-                        raise Exception("Failed to get optimized trip")
+                        raise Exception("No segment: Failed to get optimized trip")
             case 422:
                 raise Exception(f"Invalid request: {resp.json()['message']}")
             case _:
                 resp.raise_for_status()
-        raise Exception("Failed to get optimized trip")
+        raise Exception("Failed to get optimized trip. bad")
 
     def _getLonLatFromLocations(self, locations: list[Request]) -> str:
         coordinate_list_url: str = ""
@@ -151,7 +150,7 @@ class Mapbox:
                     case "Ok":
                         return self._parseMatrixJson(resp.json())
                     case "NoRoute":
-                        raise Exception("Failed to get optimized trip")
+                        raise Exception("No Route: Failed to get optimized trip")
             case 422:
                 raise Exception(f"Invalid request: {resp.json()['message']}")
             case _:
@@ -165,12 +164,10 @@ if __name__ == "__main__":
     thing.getMatrix(
         [
             Request(
-                Location(42.248791, -71.814532), Location(42.272554, -71.801570), 5
+                Location(42.248791, -71.814532), Location(42.272554, -71.801570), 5, 1
             ),
             Request(
-                Location(42.267956, -71.800240),
-                Location(42.272554, -71.801570),
-                5,
+                Location(42.267956, -71.800240), Location(42.272554, -71.801570), 5, 2
             ),
         ]
     )
@@ -189,3 +186,8 @@ if __name__ == "__main__":
     #         ]
     #     )
     # )
+
+
+# first route of the day.
+# subsequent routes will be compared agains this route:
+#    if both start/stop lat/lon pairs are with x meters of the existing poly line, request directions with start/stop inside the rout
