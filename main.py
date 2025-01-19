@@ -1,15 +1,11 @@
 import os
 from typing import Self
 
-from supabase import create_client, Client, PostgrestAPIError, PostgrestAPIResponse
 from dataclasses import dataclass
 from routeplanner import RoutePlan, Stop, Location, Request
 from mapboxclient import Mapbox
 import numpy as np
-
-supabase_url: str = os.environ.get("SUPABASE_URL")  # type: ignore
-supabase_key: str = os.environ.get("SUPABASE_KEY")  # type: ignore
-# supabase: Client = create_client(supabase_url, supabase_key)
+from supabaseclient import getTodayRequests
 
 
 def calculateDetourTime(
@@ -29,14 +25,54 @@ def forcedPath(requests: list[Request]):  # -> RoutePlan:
                 requests[i].start_loc,
                 True,
                 requests[i].end_time
+                - 1
                 - (requests[i].start_loc.travelTimeTo(requests[i].end_loc)),
                 1,
             )
         )
-        stops.append(Stop(requests[i].end_loc, False, requests[i].end_time, 1))
+        stops.append(Stop(requests[i].end_loc, False, requests[i].end_time - 1, 1))
         pass
     plan.route = stops
     return plan
+
+
+def tripJsonToStops(chosenRequests):
+    planner: Mapbox = Mapbox()
+    # If one, Never Give Fail Times
+
+    out: list[tuple[tuple[dict, dict], dict]] = planner.requestOptimizedTrip(
+        chosenRequests
+    )  # type: ignore
+    # Point1, Point2, Leg
+    # Point: Distance, Name, Location: list[float, float], Waypoint Index, Trips Index
+    # Leg: Steps, Summary, weight, duration: float, distance
+
+    fullRouteTime = 0
+    for i in range(len(out)):
+        duration = out[i][1]["duration"]
+        fullRouteTime += duration
+
+    lastUserTime = out[len(out) - 1][0][1]["location"]
+    currentTime = (
+        lastUserTime - fullRouteTime - 60
+    )  # Last Person Will be 1 Minute Early
+    stops: list[Stop] = []
+
+    for i in range(len(out)):
+        point = out[i][0][0]["location"]  # list[float, float]
+        # print(point)
+        stops.append(Stop(Location(point[0], point[1]), True, currentTime, 1))
+        # if i != len(out) - 1:
+        duration = out[i][1]["duration"]
+        # print(duration)
+        currentTime += duration
+        if i == (len(out) - 1):
+            endpoint = out[i][0][1]["location"]  # list[float, float]
+            # print(endpoint)
+            stops.append(Stop(Location(endpoint[0], endpoint[1]), True, currentTime, 1))
+    # print(stops)
+
+    return RoutePlan(chosenRequests, stops)
 
 
 def checkGroupIndexes(
@@ -57,7 +93,10 @@ def checkGroupIndexes(
         )  # Values [7,9,3]
 
         plan: RoutePlan = forcedPath(chosenRequests)
-        print(plan)
+        # plan: RoutePlan = tripJsonToStops(chosenRequests)
+
+        # print("\n")
+        # print(plan)
         # planner.requestOptimizedTrip(chosenRequests)
 
         # print(f"ROUTE num {i}")
@@ -79,21 +118,34 @@ def checkGroupIndexes(
 
 
 def subdivideGroups(requests, groups):
+    # print(groups)
     successGroup = checkGroupIndexes(requests, groups)
+    # print(f"SUB SUC {successGroup}")
 
     if successGroup:
-        return successGroup
+        return groups
     else:
-        middle = (len(groups) + 1) // 2
-        first_part = groups[:middle]
-        second_part = groups[middle:]
+        middle = (len(groups[0]) + 1) // 2
+        # print(middle)
+        first_part = [groups[0][:middle]]
+        second_part = [groups[0][middle:]]
+        # print(first_part, second_part)
 
         firstSuccess = subdivideGroups(requests, first_part)
         secondSuccess = subdivideGroups(requests, second_part)
 
-        print(
-            f"Group {groups}, {successGroup}, {first_part} {firstSuccess}, {second_part} {secondSuccess}"
-        )
+        # print(
+        #     f"Group {groups}, {successGroup != False}, {first_part} {firstSuccess != False}, {second_part} {secondSuccess != False}"
+        # )
+
+        # print(f"F {firstSuccess}, S {secondSuccess}")
+        ret = []
+        for group in firstSuccess:
+            ret.append(group)
+        for group in secondSuccess:
+            ret.append(group)
+        # print(f"RET: {ret}")
+        return ret
 
 
 # MAIN FUNCTION
@@ -107,8 +159,9 @@ def calculateMinimumRoutes(requests: list[Request]) -> list[RoutePlan]:
         requests, allOneGroup
     )  # checkGroupIndexes(requests, allOneGroup)
 
-    if successGroup:
-        return successGroup
+    print(successGroup)
+    ret = checkGroupIndexes(requests, successGroup)
+    # print(ret)
 
     """
     # For Each Number of Routes 1, Route, 2 Routes...
@@ -123,7 +176,7 @@ def calculateMinimumRoutes(requests: list[Request]) -> list[RoutePlan]:
     """
 
     # IF make it here Use Naive Case of One ROutePlan Per Request
-    return []
+    return ret  # type: ignore
 
 
 def main():
@@ -133,12 +186,6 @@ def main():
 
 def runDailyRouteMerge():
     # Fetch Data
-    try:
-        pass
-        # routes: PostgrestAPIResponse = supabase.table("routes").select("*").execute()
-    except PostgrestAPIError as e:
-        print(e)
-        return
 
     # Store to Array of Requests
     plans = calculateMinimumRoutes([])
@@ -163,23 +210,43 @@ if __name__ == "__main__":
 
     BS: Location = Location(5.5, 2)
     BD: Location = Location(6, 3)
-    BReq: Request = Request(BS, BD, 9)
+    BReq: Request = Request(BS, BD, 10)
 
-    CS: Location = Location(6, 4.5)
+    CS: Location = Location(6.75, 5)
     CD: Location = Location(5.25, 4)
     CReq: Request = Request(CS, CD, 8)
 
     DS: Location = Location(2, 6.25)
     DD: Location = Location(3.25, 5.5)
-    DReq: Request = Request(DS, DD, 7)
+    DReq: Request = Request(DS, DD, 3)
 
     ES: Location = Location(1, 3)
     ED: Location = Location(2.5, 4)
-    EReq: Request = Request(ES, ED, 6)
+    EReq: Request = Request(ES, ED, 11)
 
     # Request()
     requests = [AReq, BReq, CReq, DReq, EReq]
-    sol = calculateMinimumRoutes(requests)
+
+    todayRequests = getTodayRequests()
+    print(todayRequests)
+
+    sol = calculateMinimumRoutes(getTodayRequests())
+    # sol = calculateMinimumRoutes(requests)
     print(sol)
     # print(AReq)
+
+    carlosRequests = [
+        Request(Location(42.257255, -71.820379), Location(42.259998, -71.820529), 5),
+        Request(
+            Location(42.255953, -71.818582),
+            Location(42.263959, -71.807391),
+            5,
+        ),
+    ]
+
+    # Route 0,300,600,900
+    # Schedule = 400, 950
+    # Before and 300 Sec Earlier
+
+    # tripJsonToStops(carlosRequests)
     print("Done")

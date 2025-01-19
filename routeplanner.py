@@ -16,14 +16,15 @@ class Location:
 
     def travelTimeTo(self, destination: Self) -> float:
         # Pull from Matrix
-        return sqrt(
-            (self.lon - destination.lon) ** 2 + (self.lat - destination.lat) ** 2
+        return (
+            sqrt((self.lon - destination.lon) ** 2 + (self.lat - destination.lat) ** 2)
+            * 100
         )
         # return 0.0
 
     def __repr__(self) -> str:
         # string = f"x: {self.lon}, y: {self.lat}"
-        string = f"({self.lon}, {self.lat})"
+        string = f"({self.lat}, {self.lon})"
         return string
 
 
@@ -60,6 +61,7 @@ class RoutePlan:
         for i, stop in enumerate(self.route):
             string += "\tStop: " + str(i + 1) + ":" + str(stop) + "\n"
         string += "\n"
+        string += str(self.requests)
         return string
 
     def isValid(self) -> bool:
@@ -76,6 +78,9 @@ class RoutePlan:
                 elif stop.location == request.end_loc:
                     endIndex = j
 
+                if j > 0 and self.route[j - 1].arrivalTime > self.route[j].arrivalTime:
+                    return False
+
             # For each Request, start_loc and end_loc are in route
             if startIndex == -1 or endIndex == -1:
                 return False
@@ -88,10 +93,12 @@ class RoutePlan:
             requestedArrivalTime = self.requests[i].end_time
             earlyDropOffThreshold: float = 5 * 60.0
 
+            # print(arrivalTime, requestedArrivalTime, earlyDropOffThreshold)
             # For each Request, Stop arrival_time of end_loc is before request end_time and not more than (5) minutes before
             if arrivalTime > requestedArrivalTime or arrivalTime < (
                 requestedArrivalTime - earlyDropOffThreshold
             ):
+                # print("INVALID TIME")
                 return False
 
             # For each Request, Stop arrival_time of start_loc is not before (30) + start_loc.travelTimeTo(end_loc)
